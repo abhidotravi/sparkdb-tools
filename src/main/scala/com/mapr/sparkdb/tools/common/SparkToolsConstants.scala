@@ -14,7 +14,7 @@ object SparkToolsConstants {
   val EXECUTOR_JAVA_OPTS_CONFIG = "spark.executor.extraJavaOptions"
   val DRIVER_JAVA_OPTS_CONFIG = "spark.driver.extraJavaOptions"
 
-  //Hadoop Configuration related constants
+  //Hadoop conf constants
   val HADOOP2_VERSION = "2.7.0"
   val HADOOP_HOME: String = "/opt/mapr/hadoop/hadoop-" + HADOOP2_VERSION + "/"
   val HADOOP_CONF_DIR: String = HADOOP_HOME + "/etc/hadoop/"
