@@ -5,7 +5,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import com.mapr.db.spark._
 import com.mapr.sparkdb.tools.common.SparkToolsConstants._
 import com.typesafe.config._
-import com.mapr.sparkdb.tools.common.{RunnerInfo, Utils}
+import com.mapr.sparkdb.tools.common.{ImportJsonInfo, Utils}
 import org.ojai.Document
 import org.apache.hadoop.conf.Configuration
 import org.ojai.json.mapreduce.JSONFileInputFormat
@@ -13,9 +13,9 @@ import org.apache.hadoop.io.LongWritable
 /**
   * Created by aravi on 3/8/17.
   */
-object ImportJSON {
+object ImportJson {
 
-  val appName = "ImportJSON"
+  val appName = "ImportJson"
   def main(args: Array[String]): Unit = {
     try {
       //Parse arguments
@@ -58,36 +58,38 @@ object ImportJSON {
     }
   }
 
-  private[importjson] def runImport(implicit sc: SparkContext, conf: Configuration, runInfo: RunnerInfo): Unit = {
+  private[importjson] def runImport(implicit sc: SparkContext, conf: Configuration, runInfo: ImportJsonInfo): Unit = {
     sc.newAPIHadoopFile(runInfo.source,
       classOf[JSONFileInputFormat],
       classOf[LongWritable],
       classOf[Document],
       conf)
       .map(x => x._2)
-      .map(ojaiDoc => MapRDBSpark.newDocument(ojaiDoc))
+      .map(ojaiDoc => MapRDBSpark.newDocument(ojaiDoc)).map(doc => (doc._id, doc))
       .saveToMapRDB(runInfo.sink,
         createTable = false,
         bulkInsert = true,
-        idFieldPath = "_id")
+        idFieldPath = runInfo.id)
   }
 
-  private[importjson] def parseArgs(args: Array[String]): RunnerInfo = {
+  private[importjson] def parseArgs(args: Array[String]): ImportJsonInfo = {
     var src: String = ""
     var sink: String = ""
+    var idField: String = "_id"
     args foreach {
       case(value) =>
         value match {
           case "-src" => src = args(args.indexOf(value)+1)
           case "-sink" => sink = args(args.indexOf(value)+1)
+          case "-idfield" => idField = args(args.indexOf(value)+1)
           case _ => if(value.startsWith("-"))
-            println(s"[WARN] - Unrecognized argument $value")
+            println(s"[WARN] - Unrecognized argument $value is ignored")
         }
     }
     if(src.isEmpty || sink.isEmpty) {
       usage()
     }
-    RunnerInfo(src, sink)
+    ImportJsonInfo(src, sink, idField)
   }
 
   private[importjson] def usage(): Unit = {

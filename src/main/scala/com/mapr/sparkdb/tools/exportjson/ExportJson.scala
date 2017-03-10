@@ -4,13 +4,13 @@ import org.apache.spark.{SparkConf, SparkContext}
 import com.mapr.db.spark._
 import com.mapr.sparkdb.tools.common.SparkToolsConstants._
 import com.typesafe.config._
-import com.mapr.sparkdb.tools.common.{RunnerInfo, Utils}
+import com.mapr.sparkdb.tools.common.{ExportJsonInfo, Utils}
 import org.apache.hadoop.mapred._
 /**
   * Created by aravi on 3/7/17.
   */
-object ExportJSON {
-  val appName = "ExportJSON"
+object ExportJson {
+  val appName = "ExportJson"
 
   def main(args: Array[String]): Unit = {
     try {
@@ -39,12 +39,12 @@ object ExportJSON {
     }
   }
 
-  private[exportjson] def runExport(implicit sc: SparkContext, runInfo: RunnerInfo): Unit = {
+  private[exportjson] def runExport(implicit sc: SparkContext, runInfo: ExportJsonInfo): Unit = {
     sc.loadFromMapRDB(runInfo.source)
       .map(doc => doc.asJsonString()).saveAsTextFile(runInfo.sink)
   }
 
-  private[exportjson] def parseArgs(args: Array[String]): RunnerInfo = {
+  private[exportjson] def parseArgs(args: Array[String]): ExportJsonInfo = {
     var src: String = ""
     var sink: String = ""
     args foreach {
@@ -59,7 +59,7 @@ object ExportJSON {
     if(src.isEmpty || sink.isEmpty) {
       usage()
     }
-    RunnerInfo(src, sink)
+    ExportJsonInfo(src, sink)
   }
 
   private[exportjson] def usage(): Unit = {

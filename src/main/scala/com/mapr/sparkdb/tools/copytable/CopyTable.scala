@@ -7,7 +7,7 @@ import com.mapr.sparkdb.tools.common.SparkToolsConstants._
 import com.typesafe.config._
 import org.ojai.Value
 import com.mapr.db.impl.{AdminImpl, IdCodec, TabletInfoImpl}
-import com.mapr.sparkdb.tools.common.{RunnerInfo, Utils}
+import com.mapr.sparkdb.tools.common.{CopyTableInfo, Utils}
 
 object CopyTable {
   val appName = "CopyTable"
@@ -48,12 +48,12 @@ object CopyTable {
     }
   }
 
-  def runCopy(implicit sc: SparkContext, runInfo: RunnerInfo): Unit = {
+  def runCopy(implicit sc: SparkContext, runInfo: CopyTableInfo): Unit = {
     sc.loadFromMapRDB(runInfo.source)
       .saveToMapRDB(createTable = false, tablename = runInfo.sink, bulkInsert = true)
   }
 
-  private[copytable] def parseArgs(args: Array[String]): RunnerInfo = {
+  private[copytable] def parseArgs(args: Array[String]): CopyTableInfo = {
     var src: String = ""
     var sink: String = ""
     args foreach {
@@ -68,7 +68,7 @@ object CopyTable {
     if(src.isEmpty || sink.isEmpty) {
       usage()
     }
-    RunnerInfo(src, sink)
+    CopyTableInfo(src, sink)
   }
 
   private[copytable] def usage(): Unit = {
