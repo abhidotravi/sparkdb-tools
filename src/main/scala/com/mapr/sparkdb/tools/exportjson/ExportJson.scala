@@ -6,6 +6,7 @@ import com.mapr.sparkdb.tools.common.SparkToolsConstants._
 import com.typesafe.config._
 import com.mapr.sparkdb.tools.common.{ExportJsonInfo, Utils}
 import org.apache.hadoop.mapred._
+import org.ojai.json.JsonOptions
 /**
   * Created by aravi on 3/7/17.
   */
@@ -31,7 +32,7 @@ object ExportJson {
       println("SparkContext config: " + sc.getConf.toDebugString)
 
       //Ensure bulkload is set to false on the source table
-      Utils.unsetBulkLoad(runInfo.source)
+      Utils.unsetBulkLoad(runInfo.source.get)
       runExport
 
     } catch {
@@ -40,18 +41,21 @@ object ExportJson {
   }
 
   private[exportjson] def runExport(implicit sc: SparkContext, runInfo: ExportJsonInfo): Unit = {
-    sc.loadFromMapRDB(runInfo.source)
-      .map(doc => doc.asJsonString()).saveAsTextFile(runInfo.sink)
+    sc.loadFromMapRDB(runInfo.source.get)
+      .map(doc => {
+        val options = new JsonOptions
+        doc.asJsonString(options.withTags())
+      }).saveAsTextFile(runInfo.sink.get)
   }
 
   private[exportjson] def parseArgs(args: Array[String]): ExportJsonInfo = {
-    var src: String = ""
-    var sink: String = ""
+    var src: Option[String] = None
+    var sink: Option[String] = None
     args foreach {
       case(value) =>
         value match {
-          case "-src" => src = args(args.indexOf(value)+1)
-          case "-sink" => sink = args(args.indexOf(value)+1)
+          case "-src" => src = Some(args(args.indexOf(value)+1))
+          case "-sink" => sink = Some(args(args.indexOf(value)+1))
           case _ => if(value.startsWith("-"))
             println(s"[WARN] - Unrecognized argument $value is ignored")
         }

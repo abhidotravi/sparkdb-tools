@@ -20,8 +20,8 @@ object ImportJson {
     try {
       //Parse arguments
       implicit val runInfo = parseArgs(args)
-      println("Source File: " + runInfo.source)
-      println("Sink Table: " + runInfo.sink)
+      println("Source File: " + runInfo.source.getOrElse(""))
+      println("Sink Table: " + runInfo.sink.getOrElse(""))
 
       //Setup spark context
       val config: Config = ConfigFactory.load("application")
@@ -37,7 +37,7 @@ object ImportJson {
       implicit val hadoopConf = Utils.createHadoopConfiguration()
 
       //Setup sink table
-      val isNew = setupSinkTable(runInfo.sink)
+      implicit val isNew = setupSinkTable(runInfo.sink.get)
 
       try {
         runImport
@@ -45,43 +45,75 @@ object ImportJson {
         case e: Throwable => {
           e.printStackTrace()
           if(isNew)
-            Utils.unsetBulkLoad(runInfo.sink)
+            Utils.unsetBulkLoad(runInfo.sink.get)
         }
       }
 
       //Ensure bulkload is set to false for a new table
       if(isNew)
-        Utils.unsetBulkLoad(runInfo.sink)
+        Utils.unsetBulkLoad(runInfo.sink.get)
 
     } catch {
       case e: Throwable => e.printStackTrace()
     }
   }
 
-  private[importjson] def runImport(implicit sc: SparkContext, conf: Configuration, runInfo: ImportJsonInfo): Unit = {
-    sc.newAPIHadoopFile(runInfo.source,
+  private[importjson] def runImport(implicit sc: SparkContext,
+                                    conf: Configuration,
+                                    runInfo: ImportJsonInfo,
+                                    isPresplit: Boolean): Unit = {
+    val docRDD = sc.newAPIHadoopFile(runInfo.source.get,
       classOf[JSONFileInputFormat],
       classOf[LongWritable],
       classOf[Document],
       conf)
       .map(x => x._2)
-      .map(ojaiDoc => MapRDBSpark.newDocument(ojaiDoc)).map(doc => (doc._id, doc))
-      .saveToMapRDB(runInfo.sink,
+      .map(doc => MapRDBSpark.newDocument(doc))
+      .keyBy(doc => doc.getString(runInfo.id.get))
+
+    val sortedRDD = if (isPresplit) {
+      docRDD.repartitionAndSortWithinPartitions(
+        MapRDBSpark.newPartitioner[String](runInfo.sink.get))
+    } else {
+      docRDD.sortByKey()
+    }
+
+    sortedRDD.saveToMapRDB(runInfo.sink.get,
+      createTable = false,
+      bulkInsert = true)
+
+      /*.map(ojaiDoc => MapRDBSpark.newDocument(ojaiDoc)).map(doc => (doc._id, doc)).map(x => x._2)*/
+      /*.saveToMapRDB(runInfo.sink.get,
         createTable = false,
         bulkInsert = true,
-        idFieldPath = runInfo.id)
+        idFieldPath = runInfo.id.get)*/
   }
 
   private[importjson] def parseArgs(args: Array[String]): ImportJsonInfo = {
-    var src: String = ""
-    var sink: String = ""
-    var idField: String = "_id"
+    var src: Option[String] = None
+    var sink: Option[String] = None
+    var idField: Option[String] = None
     args foreach {
       case(value) =>
         value match {
-          case "-src" => src = args(args.indexOf(value)+1)
-          case "-sink" => sink = args(args.indexOf(value)+1)
-          case "-idfield" => idField = args(args.indexOf(value)+1)
+          case "-src" => src = {
+            if(args.isDefinedAt(args.indexOf(value)+1))
+              Some(args(args.indexOf(value)+1))
+            else
+              None
+          }
+          case "-sink" => sink = {
+            if(args.isDefinedAt(args.indexOf(value)+1))
+              Some(args(args.indexOf(value)+1))
+            else
+              None
+          }
+          case "-idfield" => idField = {
+            if(args.isDefinedAt(args.indexOf(value)+1))
+              Some(args(args.indexOf(value)+1))
+            else
+              None
+          }
           case _ => if(value.startsWith("-"))
             println(s"[WARN] - Unrecognized argument $value is ignored")
         }
@@ -89,11 +121,13 @@ object ImportJson {
     if(src.isEmpty || sink.isEmpty) {
       usage()
     }
-    ImportJsonInfo(src, sink, idField)
+    ImportJsonInfo(src, sink, Some(idField.getOrElse("_id")))
   }
 
   private[importjson] def usage(): Unit = {
-    println(s"Usage: $appName -src <Input text file/directory path> -sink <MapRDB-JSON sink table path>")
+    println(s"Usage: $appName -src <Input text file/directory path> -sink <MapRDB-JSON sink table path> OPTION")
+    println(s"OPTION")
+    println(s"-idfield <Field name that will be used to id the document>")
     System.exit(1)
   }
 
@@ -118,9 +152,7 @@ object ImportJson {
       }
       false
     } catch {
-      case e: Exception => {
-        throw new java.io.IOException(e.getMessage, e.getCause)
-      }
+      case e: Exception => throw new java.io.IOException(e.getMessage, e.getCause)
     } finally {
       admin.close()
     }

@@ -1,4 +1,4 @@
-package com.mapr.sparkdb.tools.copytable
+package com.mapr.sparkdb.tools.random
 
 import org.apache.spark.{SparkConf, SparkContext}
 import com.mapr.db.spark._
@@ -10,8 +10,8 @@ import com.mapr.db.impl.{AdminImpl, IdCodec, TabletInfoImpl}
 import com.mapr.db.spark.condition.Predicate
 import com.mapr.sparkdb.tools.common.{CopyTableInfo, Utils}
 
-object CopyTable {
-  val appName = "CopyTable"
+object CreatePreSplitTable {
+  val appName = "CreatePreSplitTable"
 
   def main(args: Array[String]): Unit = {
     try {
@@ -19,57 +19,14 @@ object CopyTable {
       implicit val runInfo = parseArgs(args)
       println("Source File: " + runInfo.source.getOrElse(""))
       println("Sink Table: " + runInfo.sink.getOrElse(""))
-      println("Start Key: " + runInfo.startKey.getOrElse("-INF"))
-      println("End Key: " + runInfo.endKey.getOrElse("INF"))
 
-      //Load config
-      val config: Config = ConfigFactory.load("application")
-      val conf: SparkConf = new SparkConf()
-        .setAppName(appName)
-        .setSparkHome(config.getString(SPARK_HOME_CONFIG))
-        .set(SERIALIZER_CONFIG, config.getString(SERIALIZER_CONFIG))
-        .set(KRYO_REGISTRATOR_CONFIG, config.getString(KRYO_REGISTRATOR_CONFIG))
-      implicit val sc: SparkContext = SparkContext.getOrCreate(conf)
-
-      println("SparkContext config: " + sc.getConf.toDebugString)
-
-      //Switch bulkload on source to false
-      Utils.unsetBulkLoad(runInfo.source.get)
-      val isNew: Boolean = setupSinkTable(runInfo.source.get, runInfo.sink.get)
-
-      try {
-        runCopy
-      } catch {
-        case e: Throwable => if(isNew) Utils.unsetBulkLoad(runInfo.sink.get)
-      }
-
-      //Do not modify bulkload if table already existed
-      if (isNew) Utils.unsetBulkLoad(runInfo.sink.get)
+      setupSinkTable(runInfo.source.get, runInfo.sink.get)
     } catch {
       case e: Throwable => e.printStackTrace()
     }
   }
 
-  private[copytable] def runCopy(implicit sc: SparkContext, runInfo: CopyTableInfo): Unit = {
-    val dbRDD = sc.loadFromMapRDB(runInfo.source.get)
-    val filterRDD = buildPredicate match {
-      case Some(p) => dbRDD.where(p)
-      case None => dbRDD
-    }
-
-    filterRDD.saveToMapRDB(createTable = false, tablename = runInfo.sink.get, bulkInsert = true)
-  }
-
-  private[copytable] def buildPredicate(implicit runInfo: CopyTableInfo): Option[Predicate] = {
-    (runInfo.startKey, runInfo.endKey) match {
-      case (Some(x), Some(y)) => Some(field("_id") between (runInfo.startKey.get, runInfo.endKey.get))
-      case (Some(x), None) => Some(field("_id") >= x)
-      case (None, Some(y)) => Some(field("_id") <= y)
-      case (None, None) => None
-    }
-  }
-
-  private[copytable] def parseArgs(args: Array[String]): CopyTableInfo = {
+  private[random] def parseArgs(args: Array[String]): CopyTableInfo = {
     var src: Option[String] = None
     var sink: Option[String] = None
     var startKey: Option[String] = None
@@ -89,24 +46,6 @@ object CopyTable {
             else
               None
           }
-          case "-startkey" => {
-            startKey = {
-            if(args.isDefinedAt(args.indexOf(value)+1))
-              Some(args(args.indexOf(value)+1))
-            else
-              None
-            }
-            if(startKey.isEmpty) usage()
-          }
-          case "-endkey" => {
-            endKey = {
-            if(args.isDefinedAt(args.indexOf(value)+1))
-              Some(args(args.indexOf(value)+1))
-            else
-              None
-            }
-            if(endKey.isEmpty) usage()
-          }
           case _ => if(value.startsWith("-"))
             println(s"[WARN] - Unrecognized argument $value")
         }
@@ -115,15 +54,10 @@ object CopyTable {
     if(src.isEmpty || sink.isEmpty) {
       usage()
     }
-
-    if(startKey.isDefined && endKey.isDefined) {
-      if(startKey.get > endKey.get)
-        return CopyTableInfo(src, sink, endKey, startKey)
-    }
     CopyTableInfo(src, sink, startKey, endKey)
   }
 
-  private[copytable] def usage(): Unit = {
+  private[random] def usage(): Unit = {
     println(s"Usage: $appName -src <Input text file/directory path> -sink <MapRDB-JSON sink table path> [Options]")
     println(s"Options:")
     println(s"-startkey <Start key>")
@@ -141,7 +75,7 @@ object CopyTable {
     * @return - Returns true if sink table was created, else false.
     */
   @throws(classOf[java.io.IOException])
-  private [copytable] def setupSinkTable(srcPath: String, sinkPath: String): Boolean = {
+  private [random] def setupSinkTable(srcPath: String, sinkPath: String): Unit = {
     val admin: Admin = MapRDB.newAdmin()
     try {
       if (!admin.tableExists(sinkPath)) {
@@ -159,10 +93,7 @@ object CopyTable {
         admin
           .asInstanceOf[AdminImpl]
           .createTable(tableDesc, splits.drop(1))
-        return true
       }
-
-      false
     } catch {
       case e: Exception => {
         throw new java.io.IOException(e.getMessage, e.getCause)
