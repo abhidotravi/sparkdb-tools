@@ -98,7 +98,10 @@ object CopyTable {
             else
               None
             }
-            if(startKey.isEmpty) usage()
+            if(startKey.isEmpty) {
+              println("[ERROR]: Value for -startkey is missing")
+              usage()
+            }
           }
           case "-endkey" => {
             endKey = {
@@ -107,7 +110,10 @@ object CopyTable {
             else
               None
             }
-            if(endKey.isEmpty) usage()
+            if(endKey.isEmpty) {
+              println("[ERROR]: Value for -endkey is missing")
+              usage()
+            }
           }
           case "-fields" => {
             projectFields = {
@@ -116,7 +122,10 @@ object CopyTable {
               else
                 None
             }
-            if(projectFields.isEmpty) usage()
+            if(projectFields.isEmpty) {
+              println("[ERROR]: Value for -fields is missing")
+              usage()
+            }
           }
           case "-h" | "-help" => usage()
           case _ => if(value.startsWith("-")) {

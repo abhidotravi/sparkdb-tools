@@ -102,11 +102,17 @@ object ImportJson {
             else
               None
           }
-          case "-id" => idField = {
-            if(args.isDefinedAt(args.indexOf(value)+1))
-              Some(args(args.indexOf(value)+1))
-            else
-              None
+          case "-id" => {
+            idField = {
+              if(args.isDefinedAt(args.indexOf(value)+1))
+                Some(args(args.indexOf(value)+1))
+              else
+                None
+            }
+            if(idField.isEmpty) {
+              println("[ERROR]: Value for -id is missing")
+              usage()
+            }
           }
           case "-h" | "-help" => usage()
           case _ => if(value.startsWith("-")) {
