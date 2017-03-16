@@ -51,12 +51,13 @@ object CopyTable {
   }
 
   private[copytable] def runCopy(implicit sc: SparkContext, runInfo: CopyTableInfo): Unit = {
+    val fields: List[String] = runInfo.projectFields.getOrElse("").split(",").toList
     val dbRDD = sc.loadFromMapRDB(runInfo.source.get)
+      .select(fields:_*)
     val filterRDD = buildPredicate match {
       case Some(p) => dbRDD.where(p)
       case None => dbRDD
     }
-
     filterRDD.saveToMapRDB(createTable = false, tablename = runInfo.sink.get, bulkInsert = true)
   }
 
@@ -74,6 +75,7 @@ object CopyTable {
     var sink: Option[String] = None
     var startKey: Option[String] = None
     var endKey: Option[String] = None
+    var projectFields: Option[String] = None
     args foreach {
       case(value) =>
         value match {
@@ -107,27 +109,42 @@ object CopyTable {
             }
             if(endKey.isEmpty) usage()
           }
-          case _ => if(value.startsWith("-"))
-            println(s"[WARN] - Unrecognized argument $value")
+          case "-fields" => {
+            projectFields = {
+              if(args.isDefinedAt(args.indexOf(value)+1))
+                Some(args(args.indexOf(value)+1))
+              else
+                None
+            }
+            if(projectFields.isEmpty) usage()
+          }
+          case "-h" | "-help" => usage()
+          case _ => if(value.startsWith("-")) {
+            println(s"[ERROR] - Unrecognized argument: $value")
+            usage()
+          }
         }
     }
     //Validate arguments
     if(src.isEmpty || sink.isEmpty) {
+      println("[ERROR] - Mandatory arguments not provided")
       usage()
     }
 
     if(startKey.isDefined && endKey.isDefined) {
       if(startKey.get > endKey.get)
-        return CopyTableInfo(src, sink, endKey, startKey)
+        return CopyTableInfo(src, sink, endKey, startKey, projectFields)
     }
-    CopyTableInfo(src, sink, startKey, endKey)
+    CopyTableInfo(src, sink, startKey, endKey, projectFields)
   }
 
   private[copytable] def usage(): Unit = {
-    println(s"Usage: $appName -src <Input text file/directory path> -sink <MapRDB-JSON sink table path> [Options]")
+    println(s"Usage: $appName [Options] -src <Input text file/directory path> -sink <MapRDB-JSON sink table path>")
     println(s"Options:")
+    println(s"-h or -help <For usage> ")
     println(s"-startkey <Start key>")
     println(s"-endkey <End key>")
+    println(s"-fields <Comma separated list of fieldpaths [Ex: a.b, c.d.e etc]>")
     System.exit(1)
   }
 

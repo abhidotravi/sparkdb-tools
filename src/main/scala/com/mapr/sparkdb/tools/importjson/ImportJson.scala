@@ -81,12 +81,6 @@ object ImportJson {
     sortedRDD.saveToMapRDB(runInfo.sink.get,
       createTable = false,
       bulkInsert = true)
-
-      /*.map(ojaiDoc => MapRDBSpark.newDocument(ojaiDoc)).map(doc => (doc._id, doc)).map(x => x._2)*/
-      /*.saveToMapRDB(runInfo.sink.get,
-        createTable = false,
-        bulkInsert = true,
-        idFieldPath = runInfo.id.get)*/
   }
 
   private[importjson] def parseArgs(args: Array[String]): ImportJsonInfo = {
@@ -108,26 +102,31 @@ object ImportJson {
             else
               None
           }
-          case "-idfield" => idField = {
+          case "-id" => idField = {
             if(args.isDefinedAt(args.indexOf(value)+1))
               Some(args(args.indexOf(value)+1))
             else
               None
           }
-          case _ => if(value.startsWith("-"))
-            println(s"[WARN] - Unrecognized argument $value is ignored")
+          case "-h" | "-help" => usage()
+          case _ => if(value.startsWith("-")) {
+            println(s"[ERROR] - Unrecognized argument $value")
+            usage()
+          }
         }
     }
     if(src.isEmpty || sink.isEmpty) {
+      println("[ERROR] - Mandatory arguments not provided")
       usage()
     }
     ImportJsonInfo(src, sink, Some(idField.getOrElse("_id")))
   }
 
   private[importjson] def usage(): Unit = {
-    println(s"Usage: $appName -src <Input text file/directory path> -sink <MapRDB-JSON sink table path> OPTION")
-    println(s"OPTION")
-    println(s"-idfield <Field name that will be used to id the document>")
+    println(s"Usage: $appName [Options] -src <Input text file/directory path> -sink <MapRDB-JSON sink table path>")
+    println(s"Options:")
+    println(s"-h or -help <For usage> ")
+    println(s"-id <Field name that will be used as _id the document>")
     System.exit(1)
   }
 

@@ -54,20 +54,36 @@ object ExportJson {
     args foreach {
       case(value) =>
         value match {
-          case "-src" => src = Some(args(args.indexOf(value)+1))
-          case "-sink" => sink = Some(args(args.indexOf(value)+1))
-          case _ => if(value.startsWith("-"))
-            println(s"[WARN] - Unrecognized argument $value is ignored")
+          case "-src" => src = {
+            if(args.isDefinedAt(args.indexOf(value)+1))
+              Some(args(args.indexOf(value)+1))
+            else
+              None
+          }
+          case "-sink" => sink = {
+            if(args.isDefinedAt(args.indexOf(value)+1))
+              Some(args(args.indexOf(value)+1))
+            else
+              None
+          }
+          case "-h" | "-help" => usage()
+          case _ => if(value.startsWith("-")) {
+            println(s"[ERROR] - Unrecognized argument $value")
+            usage()
+          }
         }
     }
     if(src.isEmpty || sink.isEmpty) {
+      println("[ERROR] - Mandatory arguments not provided")
       usage()
     }
     ExportJsonInfo(src, sink)
   }
 
   private[exportjson] def usage(): Unit = {
-    println(s"Usage: $appName -src <MapRDB-JSON source table path> -sink <Output text file/directory path>")
+    println(s"Usage: $appName [Options] -src <MapRDB-JSON source table path> -sink <Output text file/directory path>")
+    println(s"Options:")
+    println(s"-h or -help <For usage> ")
     System.exit(1)
   }
 }

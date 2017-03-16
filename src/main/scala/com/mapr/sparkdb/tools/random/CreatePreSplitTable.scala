@@ -54,7 +54,7 @@ object CreatePreSplitTable {
     if(src.isEmpty || sink.isEmpty) {
       usage()
     }
-    CopyTableInfo(src, sink, startKey, endKey)
+    CopyTableInfo(src, sink, startKey, endKey, None)
   }
 
   private[random] def usage(): Unit = {
