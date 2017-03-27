@@ -1,11 +1,13 @@
 package com.mapr.sparkdb.tools.random
 
 import com.mapr.db.spark._
+import com.mapr.db.spark.serializers.DBBinaryValueSerializer
 import com.mapr.sparkdb.tools.common.SparkToolsConstants._
 import com.mapr.sparkdb.tools.common.{ExportJsonInfo, Utils}
 import com.typesafe.config._
 import org.apache.spark.{SparkConf, SparkContext}
 import org.ojai.json.JsonOptions
+import org.apache.spark.Partitioner
 /**
   * Created by aravi on 3/7/17.
   */
@@ -14,6 +16,14 @@ object ExportRandomized {
                                   sink: Option[String],
                                   fieldName: Option[String],
                                   splitNo: Option[Int])
+  class CustomPartitioner(partitions: Int) extends Partitioner {
+    require(partitions >= 0, s"Number of partitions ($partitions) cannot be negative.")
+    override def numPartitions: Int = partitions
+
+    override def getPartition(key: Any): Int = {
+      key.hashCode % numPartitions
+    }
+  }
   val appName = "ExportRandomized"
 
   def main(args: Array[String]): Unit = {
@@ -45,13 +55,16 @@ object ExportRandomized {
   private[random] def runExportRandom(implicit sc: SparkContext, runInfo: ExportRandomizedInfo): Unit = {
     val options: JsonOptions = new JsonOptions
     sc.loadFromMapRDB(runInfo.source.get)
-      //.repartition(runInfo.splitNo.get * 2)
-      .map(x => (x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")), x))
+      .keyBy(x => x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")))
+      //.repartitionAndSortWithinPartitions(new CustomPartitioner(runInfo.splitNo.getOrElse(1000)))
+      .repartition(runInfo.splitNo.get * 2).repartitionAndSortWithinPartitions()
       .sortByKey()
-      .repartition(runInfo.splitNo.getOrElse(2))
+      //.map(x => (x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")), x))
+      //.repartition(runInfo.splitNo.getOrElse(2))
+      .map(x => x._2)
       .map(x => {
         val options = new JsonOptions
-        x._2.asJsonString(options.setWithTags(true))
+        x.asJsonString(options.setWithTags(true))
       })
       .saveAsTextFile(runInfo.sink.get)
   }
