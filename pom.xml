@@ -58,16 +58,31 @@
             <artifactId>spark-sql_2.11</artifactId>
             <version>${spark.version}</version>
         </dependency>-->
-        <!--<dependency>
+        <dependency>
             <groupId>com.mapr.db</groupId>
             <artifactId>maprdb</artifactId>
-            <version>5.2.0-mapr</version>
-        </dependency>-->
+            <version>5.2.1-mapr</version>
+            <scope>provided</scope>
+        </dependency>
 
         <dependency>
             <groupId>com.mapr.db</groupId>
             <artifactId>maprdb-spark</artifactId>
-            <version>5.2.0-sparkDBConnector-SNAPSHOT</version>
+            <version>5.2.1-mapr</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.ojai</groupId>
+            <artifactId>ojai-mapreduce</artifactId>
+            <version>1.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.ojai</groupId>
+            <artifactId>ojai-scala</artifactId>
+            <version>1.1</version>
             <scope>provided</scope>
         </dependency>
 

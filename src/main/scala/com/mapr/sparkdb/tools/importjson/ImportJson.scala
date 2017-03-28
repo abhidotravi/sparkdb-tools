@@ -1,5 +1,6 @@
 package com.mapr.sparkdb.tools.importjson
 
+//import com.mapr.db.impl.{IdCodec, TabletInfoImpl}
 import com.mapr.db.{Admin, MapRDB, TableDescriptor}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.mapr.db.spark._
@@ -37,10 +38,10 @@ object ImportJson {
       implicit val hadoopConf = Utils.createHadoopConfiguration()
 
       //Setup sink table
-      implicit val isNew = setupSinkTable(runInfo.sink.get)
+      val isNew = setupSinkTable(runInfo.sink.get)
 
       try {
-        runImport
+        runImport(!isNew)
       } catch {
         case e: Throwable => {
           e.printStackTrace()
@@ -58,10 +59,9 @@ object ImportJson {
     }
   }
 
-  private[importjson] def runImport(implicit sc: SparkContext,
+  private[importjson] def runImport(isPresplit: Boolean)(implicit sc: SparkContext,
                                     conf: Configuration,
-                                    runInfo: ImportJsonInfo,
-                                    isPresplit: Boolean): Unit = {
+                                    runInfo: ImportJsonInfo): Unit = {
     val docRDD = sc.newAPIHadoopFile(runInfo.source.get,
       classOf[JSONFileInputFormat],
       classOf[LongWritable],
@@ -70,14 +70,27 @@ object ImportJson {
       .map(x => x._2)
       .map(doc => MapRDBSpark.newDocument(doc))
       .keyBy(doc => doc.getString(runInfo.id.get))
+      /*.mapValues(doc => doc.asJsonString())*/
 
     val sortedRDD = if (isPresplit) {
+      /*val splits: Array[String] = MapRDB
+        .getTable(runInfo.sink.get)
+        .getTabletInfos
+        .map(x => x.asInstanceOf[TabletInfoImpl])
+        .map(x => IdCodec.decode(x.getStartRow))
+        .drop(1)
+        .map(x => x.getString)*/
+
       docRDD.repartitionAndSortWithinPartitions(
         MapRDBSpark.newPartitioner[String](runInfo.sink.get))
     } else {
       docRDD.sortByKey()
     }
 
+    /*sortedRDD
+      .mapValues(doc => MapRDBSpark.newDocument(doc))
+      .saveToMapRDB(runInfo.sink.get, createTable = false, bulkInsert = true)*/
+    /*sortedRDD.mapValues(doc => doc.asJsonString).saveAsTextFile("/jsonfiles/tempout1")*/
     sortedRDD.saveToMapRDB(runInfo.sink.get,
       createTable = false,
       bulkInsert = true)

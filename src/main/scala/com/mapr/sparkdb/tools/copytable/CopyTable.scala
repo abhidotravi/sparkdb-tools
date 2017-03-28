@@ -5,8 +5,6 @@ import com.mapr.db.spark._
 import com.mapr.db._
 import com.mapr.sparkdb.tools.common.SparkToolsConstants._
 import com.typesafe.config._
-import org.ojai.Value
-import com.mapr.db.impl.{AdminImpl, IdCodec, TabletInfoImpl}
 import com.mapr.db.spark.condition.Predicate
 import com.mapr.sparkdb.tools.common.{CopyTableInfo, Utils}
 
@@ -33,24 +31,15 @@ object CopyTable {
 
       println("SparkContext config: " + sc.getConf.toDebugString)
 
-      //Switch bulkload on source to false
       Utils.unsetBulkLoad(runInfo.source.get)
       val isNew: Boolean = setupSinkTable(runInfo.source.get, runInfo.sink.get)
-
-      try {
-        runCopy
-      } catch {
-        case e: Throwable => if(isNew) Utils.unsetBulkLoad(runInfo.sink.get)
-      }
-
-      //Do not modify bulkload if table already existed
-      if (isNew) Utils.unsetBulkLoad(runInfo.sink.get)
+      runCopy(isNew)
     } catch {
       case e: Throwable => e.printStackTrace()
     }
   }
 
-  private[copytable] def runCopy(implicit sc: SparkContext, runInfo: CopyTableInfo): Unit = {
+  private[copytable] def runCopy(createFlag: Boolean)(implicit sc: SparkContext, runInfo: CopyTableInfo): Unit = {
     val fields: List[String] = runInfo.projectFields.getOrElse("").split(",").toList
     val dbRDD = sc.loadFromMapRDB(runInfo.source.get)
       .select(fields:_*)
@@ -58,7 +47,7 @@ object CopyTable {
       case Some(p) => dbRDD.where(p)
       case None => dbRDD
     }
-    filterRDD.saveToMapRDB(createTable = false, tablename = runInfo.sink.get, bulkInsert = true)
+    filterRDD.saveToMapRDB(createTable = createFlag, tablename = runInfo.sink.get, bulkInsert = true)
   }
 
   private[copytable] def buildPredicate(implicit runInfo: CopyTableInfo): Option[Predicate] = {
@@ -170,25 +159,7 @@ object CopyTable {
   private [copytable] def setupSinkTable(srcPath: String, sinkPath: String): Boolean = {
     val admin: Admin = MapRDB.newAdmin()
     try {
-      if (!admin.tableExists(sinkPath)) {
-        val tableDesc: TableDescriptor = admin.getTableDescriptor(srcPath)
-          .setPath(sinkPath)
-          .setBulkLoad(true)
-
-        val srcTable: Table = MapRDB.getTable(srcPath)
-        val splits: Array[Value] = MapRDB
-          .getTable(srcPath)
-          .getTabletInfos
-          .map(x => x.asInstanceOf[TabletInfoImpl])
-          .map(x => IdCodec.decode(x.getStartRow))
-
-        admin
-          .asInstanceOf[AdminImpl]
-          .createTable(tableDesc, splits.drop(1))
-        return true
-      }
-
-      false
+      !admin.tableExists(sinkPath)
     } catch {
       case e: Exception => {
         throw new java.io.IOException(e.getMessage, e.getCause)
