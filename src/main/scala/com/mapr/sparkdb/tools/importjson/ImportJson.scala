@@ -70,27 +70,14 @@ object ImportJson {
       .map(x => x._2)
       .map(doc => MapRDBSpark.newDocument(doc))
       .keyBy(doc => doc.getString(runInfo.id.get))
-      /*.mapValues(doc => doc.asJsonString())*/
 
     val sortedRDD = if (isPresplit) {
-      /*val splits: Array[String] = MapRDB
-        .getTable(runInfo.sink.get)
-        .getTabletInfos
-        .map(x => x.asInstanceOf[TabletInfoImpl])
-        .map(x => IdCodec.decode(x.getStartRow))
-        .drop(1)
-        .map(x => x.getString)*/
-
       docRDD.repartitionAndSortWithinPartitions(
         MapRDBSpark.newPartitioner[String](runInfo.sink.get))
     } else {
       docRDD.sortByKey()
     }
 
-    /*sortedRDD
-      .mapValues(doc => MapRDBSpark.newDocument(doc))
-      .saveToMapRDB(runInfo.sink.get, createTable = false, bulkInsert = true)*/
-    /*sortedRDD.mapValues(doc => doc.asJsonString).saveAsTextFile("/jsonfiles/tempout1")*/
     sortedRDD.saveToMapRDB(runInfo.sink.get,
       createTable = false,
       bulkInsert = true)

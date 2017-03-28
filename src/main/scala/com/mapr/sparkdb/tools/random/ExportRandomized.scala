@@ -56,11 +56,8 @@ object ExportRandomized {
     val options: JsonOptions = new JsonOptions
     sc.loadFromMapRDB(runInfo.source.get)
       .keyBy(x => x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")))
-      //.repartitionAndSortWithinPartitions(new CustomPartitioner(runInfo.splitNo.getOrElse(1000)))
       .repartition(runInfo.splitNo.get * 2)
       .sortByKey()
-      //.map(x => (x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")), x))
-      //.repartition(runInfo.splitNo.getOrElse(2))
       .map(x => x._2)
       .map(x => {
         val options = new JsonOptions
