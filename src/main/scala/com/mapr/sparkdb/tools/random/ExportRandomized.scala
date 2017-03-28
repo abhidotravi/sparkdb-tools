@@ -57,7 +57,7 @@ object ExportRandomized {
     sc.loadFromMapRDB(runInfo.source.get)
       .keyBy(x => x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")))
       //.repartitionAndSortWithinPartitions(new CustomPartitioner(runInfo.splitNo.getOrElse(1000)))
-      .repartition(runInfo.splitNo.get * 2).repartitionAndSortWithinPartitions()
+      .repartition(runInfo.splitNo.get * 2)
       .sortByKey()
       //.map(x => (x.getBinarySerializable(runInfo.fieldName.getOrElse("field1")), x))
       //.repartition(runInfo.splitNo.getOrElse(2))
